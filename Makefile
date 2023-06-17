@@ -9,9 +9,9 @@ CXXFLAGS += -fPIC -O -Wall -Werror -g3 -v -I/usr/lib/llvm-11/include/
 CXX = clang-11
 
 .PHONY: all clean
-all: PrintFunctionNames.so
+all: FindStatic.so
 
-PrintFunctionNames.so: PrintFunctionNames.o
+FindStatic.so: FindStatic.o
 	$(CXX) -shared $^ -I/usr/lib/llvm-11 -lclang -o $@
 
 clean:

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0
 
 /*
- * Example clang plugin which simply prints the names of
- * all the top-level decls in the input file.
+ * Clang plugin to find functions which could be made
+ * static.
+ *
+ * Author: Timothy Day <tday141@gmail.com>
  *
  */
 
