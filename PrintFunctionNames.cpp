@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-65;6203;1c
+
 /*
  * Example clang plugin which simply prints the names of
  * all the top-level decls in the input file.
