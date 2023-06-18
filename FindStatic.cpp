@@ -20,36 +20,49 @@ using namespace clang;
 
 namespace
 {
-class PrintFunctionsConsumer : public ASTConsumer {
-	std::set<std::string> ParsedTemplates;
+
+class FunctionDeclVisitor : public RecursiveASTVisitor<FunctionDeclVisitor> {
+	DiagnosticsEngine &Diags;
+	unsigned WarningUnpropagatedEarlyExit;
+	unsigned BigWarning;
 
 public:
-	CompilerInstance &Instance;
-
-	PrintFunctionsConsumer(CompilerInstance &Instance,
-			       std::set<std::string> ParsedTemplates)
-		: ParsedTemplates(ParsedTemplates)
-		, Instance(Instance)
+	FunctionDeclVisitor(DiagnosticsEngine &Diags)
+		: Diags(Diags)
 	{
+		WarningUnpropagatedEarlyExit = Diags.getCustomDiagID(
+			DiagnosticsEngine::Warning, "Has definition: %q0");
+		BigWarning = Diags.getCustomDiagID(
+			DiagnosticsEngine::Warning,
+			"Doesn't have definition: %q0");
 	}
 
-	bool HandleTopLevelDecl(DeclGroupRef DG) override
+	bool VisitFunctionDecl(FunctionDecl *MethodDecl)
 	{
-		for (DeclGroupRef::iterator i = DG.begin(), e = DG.end();
-		     i != e; ++i) {
-			const Decl *D = *i;
-
-			if (const NamedDecl *ND = dyn_cast<NamedDecl>(D))
-				llvm::errs() << "top-level-decl: "
-					     << ND->getNameAsString()
-					     << ", source-loc: "
-					     << D->getLocation().printToString(D->getASTContext().getSourceManager())
-					     << ", in-main-file: "
-					     << D->getASTContext().getSourceManager().isInMainFile(D->getLocation())
-					     << "\n";
+		if (MethodDecl->isThisDeclarationADefinition() &&
+		    MethodDecl->hasBody()) {
+			Diags.Report(MethodDecl->getLocation(),
+				     WarningUnpropagatedEarlyExit)
+			  << MethodDecl->getASTContext()
+			   .getSourceManager()
+			   .isInMainFile(MethodDecl->getLocation());
+		} else {
+			Diags.Report(MethodDecl->getLocation(), BigWarning)
+			  << MethodDecl->getASTContext()
+			  .getSourceManager()
+			  .isInMainFile(MethodDecl->getLocation());
 		}
 
 		return true;
+	}
+};
+
+class PrintFunctionsConsumer : public ASTConsumer {
+public:
+	void HandleTranslationUnit(ASTContext &Context) override
+	{
+		FunctionDeclVisitor Visitor(Context.getDiagnostics());
+		Visitor.TraverseDecl(Context.getTranslationUnitDecl());
 	}
 };
 
@@ -60,8 +73,7 @@ protected:
 	std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
 						       llvm::StringRef) override
 	{
-		return std::make_unique<PrintFunctionsConsumer>(
-			CI, ParsedTemplates);
+		return std::make_unique<PrintFunctionsConsumer>();
 	}
 
 	/**
