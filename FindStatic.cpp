@@ -99,7 +99,7 @@ public:
 	}
 };
 
-class PrintFunctionNamesAction : public PluginASTAction {
+class FindStaticAction : public PluginASTAction {
 	std::set<std::string> ParsedTemplates;
 
 protected:
@@ -110,46 +110,27 @@ protected:
 			CI, ParsedTemplates);
 	}
 
+	/**
+	 * ParseArgs() - Consume plugin arguments.
+	 *
+	 * The plugin has no args, so always succeed.
+	 *
+	 * Return: Has the parsing succeeded?
+	 */
 	bool ParseArgs(const CompilerInstance &CI,
 		       const std::vector<std::string> &args) override
 	{
-		for (unsigned i = 0, e = args.size(); i != e; ++i) {
-			llvm::errs() << "PrintFunctionNames arg = " << args[i]
-				     << "\n";
-
-			// Example error handling.
-			DiagnosticsEngine &D = CI.getDiagnostics();
-
-			if (args[i] == "-an-error") {
-				unsigned DiagID = D.getCustomDiagID(
-					DiagnosticsEngine::Error,
-					"invalid argument '%0'");
-				D.Report(DiagID) << args[i];
-				return false;
-			} else if (args[i] == "-parse-template") {
-				if (i + 1 >= e) {
-					D.Report(D.getCustomDiagID(
-						DiagnosticsEngine::Error,
-						"missing -parse-template argument"));
-					return false;
-				}
-				++i;
-				ParsedTemplates.insert(args[i]);
-			}
-		}
-
-		if (!args.empty() && args[0] == "help")
-			PrintHelp(llvm::errs());
-
 		return true;
 	}
 
-	void PrintHelp(llvm::raw_ostream &ros)
-	{
-		ros << "Help for PrintFunctionNames plugin goes here\n";
-	}
-
-	// Automatically run the plugin after the main AST action
+	/**
+	 * getActionType() - Determine when to run action.
+	 *
+	 * Automatically run the plugin after the main AST
+	 * action.
+	 *
+	 * Return: When the action should run.
+	 */
 	PluginASTAction::ActionType getActionType() override
 	{
 		return AddAfterMainAction;
@@ -158,5 +139,8 @@ protected:
 
 }
 
-static FrontendPluginRegistry::Add<PrintFunctionNamesAction>
-	X("print-fns", "print function names");
+/*
+ * Make Clang aware of the find-static plugin.
+ */
+static FrontendPluginRegistry::Add<FindStaticAction>
+	X("find-static", "find potential static functions");
