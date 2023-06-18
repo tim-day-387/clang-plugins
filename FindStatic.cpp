@@ -41,7 +41,9 @@ public:
 		    MethodDecl->hasBody() &&
 		    functionMap.count(MethodDecl->getNameAsString()) == 0 &&
 		    !MethodDecl->isStatic() &&
-		    MethodDecl->getNameAsString() != "main") {
+		    MethodDecl->getASTContext().getSourceManager()
+		    .isInMainFile(MethodDecl->getLocation()) &&
+		    !MethodDecl->isMain()) {
 			Diags.Report(MethodDecl->getLocation(),
 				     WarningFoundStatic);
 		} else {
