@@ -43,6 +43,8 @@ public:
 					     << ND->getNameAsString()
 					     << ", source-loc: "
 					     << D->getLocation().printToString(D->getASTContext().getSourceManager())
+					     << ", in-main-file: "
+					     << D->getASTContext().getSourceManager().isInMainFile(D->getLocation())
 					     << "\n";
 		}
 
