@@ -21,36 +21,31 @@ using namespace clang;
 namespace
 {
 
+static std::unordered_map<std::string, int> functionMap;
+
 class FunctionDeclVisitor : public RecursiveASTVisitor<FunctionDeclVisitor> {
 	DiagnosticsEngine &Diags;
-	unsigned WarningUnpropagatedEarlyExit;
-	unsigned BigWarning;
+	unsigned WarningFoundStatic;
 
 public:
 	FunctionDeclVisitor(DiagnosticsEngine &Diags)
 		: Diags(Diags)
 	{
-		WarningUnpropagatedEarlyExit = Diags.getCustomDiagID(
-			DiagnosticsEngine::Warning, "Has definition: %q0");
-		BigWarning = Diags.getCustomDiagID(
-			DiagnosticsEngine::Warning,
-			"Doesn't have definition: %q0");
+		WarningFoundStatic = Diags.getCustomDiagID(
+			DiagnosticsEngine::Warning, "Should this function be static?");
 	}
 
 	bool VisitFunctionDecl(FunctionDecl *MethodDecl)
 	{
 		if (MethodDecl->isThisDeclarationADefinition() &&
-		    MethodDecl->hasBody()) {
+		    MethodDecl->hasBody() &&
+		    functionMap.count(MethodDecl->getNameAsString()) == 0 &&
+		    !MethodDecl->isStatic() &&
+		    MethodDecl->getNameAsString() != "main") {
 			Diags.Report(MethodDecl->getLocation(),
-				     WarningUnpropagatedEarlyExit)
-			  << MethodDecl->getASTContext()
-			   .getSourceManager()
-			   .isInMainFile(MethodDecl->getLocation());
+				     WarningFoundStatic);
 		} else {
-			Diags.Report(MethodDecl->getLocation(), BigWarning)
-			  << MethodDecl->getASTContext()
-			  .getSourceManager()
-			  .isInMainFile(MethodDecl->getLocation());
+			functionMap.insert({MethodDecl->getNameAsString(), 1});
 		}
 
 		return true;
