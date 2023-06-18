@@ -21,14 +21,15 @@ using namespace clang;
 namespace
 {
 class PrintFunctionsConsumer : public ASTConsumer {
-	CompilerInstance &Instance;
 	std::set<std::string> ParsedTemplates;
 
 public:
+	CompilerInstance &Instance;
+
 	PrintFunctionsConsumer(CompilerInstance &Instance,
 			       std::set<std::string> ParsedTemplates)
-		: Instance(Instance)
-		, ParsedTemplates(ParsedTemplates)
+		: ParsedTemplates(ParsedTemplates)
+		, Instance(Instance)
 	{
 	}
 
@@ -49,53 +50,6 @@ public:
 		}
 
 		return true;
-	}
-
-	void HandleTranslationUnit(ASTContext &context) override
-	{
-		if (!Instance.getLangOpts().DelayedTemplateParsing)
-			return;
-
-		/*
-		 * This demonstrates how to force instantiation of some templates in
-		 * -fdelayed-template-parsing mode. (Note: Doing this unconditionally for
-		 * all templates is similar to not using -fdelayed-template-parsig in the
-		 * first place.)
-		 * The advantage of doing this in HandleTranslationUnit() is that all
-		 * codegen (when using -add-plugin) is completely finished and this can't
-		 * affect the compiler output.
-		 */
-		struct Visitor : public RecursiveASTVisitor<Visitor> {
-			const std::set<std::string> &ParsedTemplates;
-
-			Visitor(const std::set<std::string> &ParsedTemplates)
-				: ParsedTemplates(ParsedTemplates)
-			{
-			}
-
-			bool VisitFunctionDecl(FunctionDecl *FD)
-			{
-				if (FD->isLateTemplateParsed() &&
-				    ParsedTemplates.count(
-					    FD->getNameAsString()))
-					LateParsedDecls.insert(FD);
-				return true;
-			}
-
-			std::set<FunctionDecl *> LateParsedDecls;
-		} v(ParsedTemplates);
-
-		v.TraverseDecl(context.getTranslationUnitDecl());
-
-		clang::Sema &sema = Instance.getSema();
-
-		for (const FunctionDecl *FD : v.LateParsedDecls) {
-			clang::LateParsedTemplate &LPT =
-				*sema.LateParsedTemplateMap.find(FD)->second;
-			sema.LateTemplateParser(sema.OpaqueParser, LPT);
-			llvm::errs() << "late-parsed-decl: \""
-				     << FD->getNameAsString() << "\"\n";
-		}
 	}
 };
 
