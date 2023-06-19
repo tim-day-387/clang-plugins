@@ -1,112 +1,93 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-/*
- * Clang plugin to find functions which could be made
- * static.
- *
- * Author: Timothy Day <tday141@gmail.com>
- *
- */
+//
+// Clang plugin to find functions which could be made
+// static.
+//
+// Author: Timothy Day <tday141@gmail.com>
+//
 
-#include <clang/Frontend/FrontendPluginRegistry.h>
 #include <clang/AST/AST.h>
 #include <clang/AST/ASTConsumer.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/FrontendPluginRegistry.h>
 #include <clang/Sema/Sema.h>
 #include <llvm/Support/raw_ostream.h>
 
 using namespace clang;
 
-namespace
-{
+namespace {
 
 static std::unordered_map<std::string, int> functionMap;
 
 class FunctionDeclVisitor : public RecursiveASTVisitor<FunctionDeclVisitor> {
-	DiagnosticsEngine &Diags;
-	unsigned WarningFoundStatic;
+  DiagnosticsEngine &Diags;
+  unsigned WarningFoundStatic;
 
 public:
-	FunctionDeclVisitor(DiagnosticsEngine &Diags)
-		: Diags(Diags)
-	{
-		WarningFoundStatic = Diags.getCustomDiagID(
-			DiagnosticsEngine::Warning, "Should this function be static?");
-	}
+  FunctionDeclVisitor(DiagnosticsEngine &Diags) : Diags(Diags) {
+    WarningFoundStatic = Diags.getCustomDiagID(
+        DiagnosticsEngine::Warning, "Should this function be static?");
+  }
 
-	bool VisitFunctionDecl(FunctionDecl *MethodDecl)
-	{
-		auto isValidDef = MethodDecl->isThisDeclarationADefinition() &&
-			MethodDecl->hasBody();
-		auto isNotDeclared = (functionMap.count(MethodDecl->getNameAsString()) == 0);
-		auto isNotStatic = !MethodDecl->isStatic();
-		auto couldBeStatic = MethodDecl->getASTContext().getSourceManager()
-			.isInMainFile(MethodDecl->getLocation()) &&
-			!MethodDecl->isMain();
+  bool VisitFunctionDecl(FunctionDecl *MethodDecl) {
+    auto isValidDef =
+        MethodDecl->isThisDeclarationADefinition() && MethodDecl->hasBody();
+    auto isNotDeclared =
+        (functionMap.count(MethodDecl->getNameAsString()) == 0);
+    auto isNotStatic = !MethodDecl->isStatic();
+    auto couldBeStatic =
+        MethodDecl->getASTContext().getSourceManager().isInMainFile(
+            MethodDecl->getLocation()) &&
+        !MethodDecl->isMain();
 
-		if (isValidDef && isNotDeclared &&
-		    isNotStatic && couldBeStatic) {
-			Diags.Report(MethodDecl->getLocation(),
-				     WarningFoundStatic);
-		} else {
-			functionMap.insert({MethodDecl->getNameAsString(), 1});
-		}
+    if (isValidDef && isNotDeclared && isNotStatic && couldBeStatic) {
+      Diags.Report(MethodDecl->getLocation(), WarningFoundStatic);
+    } else {
+      functionMap.insert({MethodDecl->getNameAsString(), 1});
+    }
 
-		return true;
-	}
+    return true;
+  }
 };
 
 class PrintFunctionsConsumer : public ASTConsumer {
 public:
-	void HandleTranslationUnit(ASTContext &Context) override
-	{
-		FunctionDeclVisitor Visitor(Context.getDiagnostics());
-		Visitor.TraverseDecl(Context.getTranslationUnitDecl());
-	}
+  void HandleTranslationUnit(ASTContext &Context) override {
+    FunctionDeclVisitor Visitor(Context.getDiagnostics());
+    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+  }
 };
 
 class FindStaticAction : public PluginASTAction {
-	std::set<std::string> ParsedTemplates;
+  std::set<std::string> ParsedTemplates;
 
 protected:
-	std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-						       llvm::StringRef) override
-	{
-		return std::make_unique<PrintFunctionsConsumer>();
-	}
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
+                                                 llvm::StringRef) override {
+    return std::make_unique<PrintFunctionsConsumer>();
+  }
 
-	/**
-	 * ParseArgs() - Consume plugin arguments.
-	 *
-	 * The plugin has no args, so always succeed.
-	 *
-	 * Return: Has the parsing succeeded?
-	 */
-	bool ParseArgs(const CompilerInstance &CI,
-		       const std::vector<std::string> &args) override
-	{
-		return true;
-	}
+  /// Consume plugin arguments; the plugin has no args, so always
+  /// succeed.
+  ///
+  /// \returns true when the parsing succeeds
+  bool ParseArgs(const CompilerInstance &CI,
+                 const std::vector<std::string> &args) override {
+    return true;
+  }
 
-	/**
-	 * getActionType() - Determine when to run action.
-	 *
-	 * Automatically run the plugin after the main AST
-	 * action.
-	 *
-	 * Return: When the action should run.
-	 */
-	PluginASTAction::ActionType getActionType() override
-	{
-		return AddAfterMainAction;
-	}
+  /// Determines when to run action, in this case, automatically
+  /// after the main AST action.
+  ///
+  /// \returns when the action should run
+  PluginASTAction::ActionType getActionType() override {
+    return AddAfterMainAction;
+  }
 };
 
-}
+} // namespace
 
-/*
- * Make Clang aware of the find-static plugin.
- */
 static FrontendPluginRegistry::Add<FindStaticAction>
-	X("find-static", "find potential static functions");
+    X("find-static", "find potential static functions");
