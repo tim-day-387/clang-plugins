@@ -37,13 +37,16 @@ public:
 
 	bool VisitFunctionDecl(FunctionDecl *MethodDecl)
 	{
-		if (MethodDecl->isThisDeclarationADefinition() &&
-		    MethodDecl->hasBody() &&
-		    functionMap.count(MethodDecl->getNameAsString()) == 0 &&
-		    !MethodDecl->isStatic() &&
-		    MethodDecl->getASTContext().getSourceManager()
-		    .isInMainFile(MethodDecl->getLocation()) &&
-		    !MethodDecl->isMain()) {
+		auto isValidDef = MethodDecl->isThisDeclarationADefinition() &&
+			MethodDecl->hasBody();
+		auto isNotDeclared = (functionMap.count(MethodDecl->getNameAsString()) == 0);
+		auto isNotStatic = !MethodDecl->isStatic();
+		auto couldBeStatic = MethodDecl->getASTContext().getSourceManager()
+			.isInMainFile(MethodDecl->getLocation()) &&
+			!MethodDecl->isMain();
+
+		if (isValidDef && isNotDeclared &&
+		    isNotStatic && couldBeStatic) {
 			Diags.Report(MethodDecl->getLocation(),
 				     WarningFoundStatic);
 		} else {
