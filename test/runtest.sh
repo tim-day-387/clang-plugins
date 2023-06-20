@@ -4,5 +4,11 @@
 # Run tests for FindStatic
 #
 
-clang-11 -fplugin=./FindStatic.so ./test/user-test/test.c
+root="$(pwd)"
+
+clang -fplugin=./FindStatic.so ./test/user-test/test.c
 rm -f ./a.out
+
+cd ./test/kernel-test/
+make CC="clang -fplugin=$root/FindStatic.so"
+make clean

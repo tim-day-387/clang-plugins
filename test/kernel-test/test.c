@@ -10,11 +10,27 @@
 
 MODULE_LICENSE("GPL");
 
-static int test_init(void)
+/*
+ * This function should not be static.
+ */
+void foobar(void)
 {
+	printk("test");
+}
+EXPORT_SYMBOL(foobar);
+
+/*
+ * This function should be static.
+ */
+int test_init(void)
+{
+	foobar();
 	return 0;
 }
 
+/*
+ * This function is static.
+ */
 static void test_exit(void)
 {
 }

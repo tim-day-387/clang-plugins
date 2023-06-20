@@ -21,30 +21,43 @@ namespace {
 
 static std::unordered_map<std::string, int> functionMap;
 
-class FunctionDeclVisitor : public RecursiveASTVisitor<FunctionDeclVisitor> {
+bool isWarnable(FunctionDecl *MethodDecl) {
+  auto isValidDef =
+      MethodDecl->isThisDeclarationADefinition() && MethodDecl->hasBody();
+  auto isNotDeclared =
+      (functionMap.count(MethodDecl->getNameAsString()) == 0);
+  auto isNotStatic = !MethodDecl->isStatic();
+  auto couldBeStatic =
+      MethodDecl->getASTContext().getSourceManager().isInMainFile(
+          MethodDecl->getLocation()) &&
+      !MethodDecl->isMain();
+
+  return isValidDef && isNotDeclared && isNotStatic && couldBeStatic;
+}
+
+class FindStaticDeclVisitor : public RecursiveASTVisitor<FindStaticDeclVisitor> {
   DiagnosticsEngine &Diags;
   unsigned WarningFoundStatic;
 
 public:
-  FunctionDeclVisitor(DiagnosticsEngine &Diags) : Diags(Diags) {
+  FindStaticDeclVisitor(DiagnosticsEngine &Diags) : Diags(Diags) {
     WarningFoundStatic = Diags.getCustomDiagID(
         DiagnosticsEngine::Warning, "Should this function be static?");
   }
 
   bool VisitFunctionDecl(FunctionDecl *MethodDecl) {
-    auto isValidDef =
-        MethodDecl->isThisDeclarationADefinition() && MethodDecl->hasBody();
-    auto isNotDeclared =
-        (functionMap.count(MethodDecl->getNameAsString()) == 0);
-    auto isNotStatic = !MethodDecl->isStatic();
-    auto couldBeStatic =
-        MethodDecl->getASTContext().getSourceManager().isInMainFile(
-            MethodDecl->getLocation()) &&
-        !MethodDecl->isMain();
-
-    if (isValidDef && isNotDeclared && isNotStatic && couldBeStatic) {
+    if (isWarnable(MethodDecl)) {
       Diags.Report(MethodDecl->getLocation(), WarningFoundStatic);
-    } else {
+    }
+
+    return true;
+  }
+};
+
+class ScanDeclVisitor : public RecursiveASTVisitor<ScanDeclVisitor> {
+public:
+  bool VisitFunctionDecl(FunctionDecl *MethodDecl) {
+    if (!isWarnable(MethodDecl)) {
       functionMap.insert({MethodDecl->getNameAsString(), 1});
     }
 
@@ -55,7 +68,10 @@ public:
 class PrintFunctionsConsumer : public ASTConsumer {
 public:
   void HandleTranslationUnit(ASTContext &Context) override {
-    FunctionDeclVisitor Visitor(Context.getDiagnostics());
+    ScanDeclVisitor Scanner;
+    Scanner.TraverseDecl(Context.getTranslationUnitDecl());
+
+    FindStaticDeclVisitor Visitor(Context.getDiagnostics());
     Visitor.TraverseDecl(Context.getTranslationUnitDecl());
   }
 };
